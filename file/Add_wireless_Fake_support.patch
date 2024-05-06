@@ -1,0 +1,185 @@
+From 2802121b31b841fe37b764e45e8f38124f105f28 Mon Sep 17 00:00:00 2001
+From: Gitea <gitea@fake.local>
+Date: Tue, 16 Apr 2024 07:50:29 +0000
+Subject: [PATCH] Add wireless Fake support
+
+---
+ modules/luci-base/po/zh_Hans/base.po          | 27 +++++++++
+ modules/luci-base/po/zh_Hant/base.po          | 26 +++++++++
+ .../resources/view/network/wireless.js        | 58 ++++++++++++++++++-
+ .../share/rpcd/acl.d/luci-mod-network.json    |  3 +-
+ 4 files changed, 111 insertions(+), 3 deletions(-)
+
+diff --git a/modules/luci-base/po/zh_Hans/base.po b/modules/luci-base/po/zh_Hans/base.po
+index 1136ac93..34339dd1 100644
+--- a/modules/luci-base/po/zh_Hans/base.po
++++ b/modules/luci-base/po/zh_Hans/base.po
+@@ -11758,3 +11758,30 @@ msgstr "{example_nx} 返回 {nxdomain}。"
+ #: modules/luci-compat/luasrc/view/cbi/delegator.htm:20
+ msgid "« Back"
+ msgstr "« 后退"
++
++msgid "List of IP sets to populate with the specified domain IPs."
++msgstr "要用指定域 IP 填充的 IP 集列表。"
++
++msgid "List of domains to force to an IP address."
++msgstr "此列表将域名强制指向某个 IP 地址。"
++
++#: modules/luci-mod-network/htdocs/luci-static/resources/view/network/wireless.js:284
++msgid "First, Please disable wireless station"
++msgstr "首先，请关闭无线站点"
++
++#: modules/luci-mod-network/htdocs/luci-static/resources/view/network/wireless.js:939
++msgid "Change MAC and Hostname"
++msgstr "更改物理地址和主机名"
++
++#: modules/luci-mod-network/htdocs/luci-static/resources/view/network/wireless.js:941
++msgid "Fake"
++msgstr "伪装"
++
++#: modules/luci-mod-network/htdocs/luci-static/resources/view/network/wireless.js:2208
++msgid "Change the MAC and hostname of all wifinet"
++msgstr "更改所有无线网络的物理地址和主机名"
++
++#: modules/luci-mod-network/htdocs/luci-static/resources/view/network/wireless.js:2210
++msgid "Fake all wifinet"
++msgstr "伪装所有无线网络"
++
+diff --git a/modules/luci-base/po/zh_Hant/base.po b/modules/luci-base/po/zh_Hant/base.po
+index ce088773..de13e896 100644
+--- a/modules/luci-base/po/zh_Hant/base.po
++++ b/modules/luci-base/po/zh_Hant/base.po
+@@ -11774,3 +11774,29 @@ msgstr "{example_nx} 返回 {nxdomain}."
+ #: modules/luci-compat/luasrc/view/cbi/delegator.htm:20
+ msgid "« Back"
+ msgstr "« 倒退"
++
++msgid "List of IP sets to populate with the specified domain IPs."
++msgstr "使用指定網域 IP 填充的 IP 集列表。"
++
++msgid "List of domains to force to an IP address."
++msgstr "列出網域以便強制到某個IP位址."
++
++#: modules/luci-mod-network/htdocs/luci-static/resources/view/network/wireless.js:284
++msgid "First, Please disable wireless station"
++msgstr "首先，請關閉無線站點"
++
++#: modules/luci-mod-network/htdocs/luci-static/resources/view/network/wireless.js:939
++msgid "Change MAC and Hostname"
++msgstr "更改物理地址和主機名"
++
++#: modules/luci-mod-network/htdocs/luci-static/resources/view/network/wireless.js:941
++msgid "Fake"
++msgstr "僞裝"
++
++#: modules/luci-mod-network/htdocs/luci-static/resources/view/network/wireless.js:2208
++msgid "Change the MAC and hostname of all wifinet"
++msgstr "更改所有無線網絡的物理地址和主機名"
++
++#: modules/luci-mod-network/htdocs/luci-static/resources/view/network/wireless.js:2210
++msgid "Fake all wifinet"
++msgstr "偽裝所有無線網絡"
+diff --git a/modules/luci-mod-network/htdocs/luci-static/resources/view/network/wireless.js b/modules/luci-mod-network/htdocs/luci-static/resources/view/network/wireless.js
+index 39dc915f..b2ea7eb6 100644
+--- a/modules/luci-mod-network/htdocs/luci-static/resources/view/network/wireless.js
++++ b/modules/luci-mod-network/htdocs/luci-static/resources/view/network/wireless.js
+@@ -264,6 +264,28 @@ function network_updown(id, map, ev) {
+ 	});
+ }
+ 
++function change_mac(id, ev) {
++	var radio = uci.get('wireless', id, 'device'),
++		disabled = (uci.get('wireless', id, 'disabled') == '1') ||
++		(uci.get('wireless', radio, 'disabled') == '1');
++
++	var wifiname = uci.get('wireless', id, 'ssid');
++	var args = ['/etc/config/scp/ch_mac.sh', ':', id ];
++
++	if (disabled || (id == 'all')) {
++		return fs.exec('sh', args).then(function(res) {
++			var fakeout = document.querySelector('.fake-output');
++			fakeout.style.display = '';
++			dom.content(fakeout, E('pre', [ res.stdout || '', res.stderr || '' ]));
++		}).catch(function(err) {
++			ui.addNotification(null, E('p', [ err ]))
++		});
++	} else {
++		ui.addNotification(null, E('p', {}, _('First, Please disable wireless station') + ' "' + wifiname + '"'));
++		return '';
++	}
++}
++
+ function next_free_sid(offset) {
+ 	var sid = 'wifinet' + offset;
+ 
+@@ -883,6 +905,10 @@ return view.extend({
+ 				var isDisabled = (inst.get('disabled') == '1' ||
+ 					uci.get('wireless', inst.getWifiDeviceName(), 'disabled') == '1');
+ 
++				if (isDisabled && (uci.get('wireless', section_id, 'mode') == 'sta')) {
++					var isFake = (uci.get('network', 'globals', 'Fake') == '1');
++				}
++
+ 				btns = [
+ 					E('button', {
+ 						'class': 'cbi-button cbi-button-neutral enable-disable',
+@@ -898,7 +924,13 @@ return view.extend({
+ 						'class': 'cbi-button cbi-button-negative remove',
+ 						'title': _('Delete this network'),
+ 						'click': ui.createHandlerFn(this, 'handleRemove', section_id)
+-					}, _('Remove'))
++					}, _('Remove')),
++					E('button', {
++						'class': 'cbi-button cbi-button-neutral',
++						'style': isFake ? '' : 'display:none',
++						'title': _('Change MAC and Hostname'),
++						'click': ui.createHandlerFn(this, change_mac, section_id)
++					}, _('Fake'))
+ 				];
+ 			}
+ 
+@@ -2293,7 +2325,29 @@ return view.extend({
+ 
+ 			cbi_update_table(table, [], E('em', { 'class': 'spinning' }, _('Collecting data...')))
+ 
+-			return E([ nodes, E('h3', _('Associated Stations')), table ]);
++			var isFake = (uci.get('network', 'globals', 'Fake') == '1');
++
++			var fakebtns = E('div', {'style': isFake ? 'padding-right:0px' : 'display:none' },
++				E('table', { 'class': 'table cbi-section-table' }, [
++					E('tr', { 'class': 'tr table-titles' }, [
++						E('td', { 'class': 'td cbi-value-field' }),
++						E('td', { 'class': 'td middle cbi-section-actions', 'width':'25%' },
++							E('div', {},
++								E('button', {
++									'class': 'cbi-button cbi-button-neutral fade-in',
++									'title': _('Change the MAC and hostname of all wifinet'),
++									'click': ui.createHandlerFn(this, change_mac, 'all')
++								}, _('Fake all wifinet'))
++							)
++						)
++					]),
++					E('tr', { 'class': 'tr table-titles' },
++						E('td', { 'class': 'td cbi-value-field fake-output', 'colspan':'2', 'style': 'display:none' })
++					)
++				])
++			);
++
++			return E([ fakebtns, nodes, E('h3', _('Associated Stations')), table ]);
+ 		}, this, m));
+ 	},
+ 
+diff --git a/modules/luci-mod-network/root/usr/share/rpcd/acl.d/luci-mod-network.json b/modules/luci-mod-network/root/usr/share/rpcd/acl.d/luci-mod-network.json
+index 6e9118ac..83498a61 100644
+--- a/modules/luci-mod-network/root/usr/share/rpcd/acl.d/luci-mod-network.json
++++ b/modules/luci-mod-network/root/usr/share/rpcd/acl.d/luci-mod-network.json
+@@ -10,7 +10,8 @@
+ 				"/usr/libexec/luci-peeraddr": [ "exec" ],
+ 				"/usr/lib/opkg/info/netifd.control": [ "read" ],
+ 				"/proc/sys/net/ipv[46]/conf/*": [ "read" ],
+-				"/sys/class/net/*/brport/*": [ "read" ]
++				"/sys/class/net/*/brport/*": [ "read" ],
++				"/bin/sh": [ "exec" ]
+ 			},
+ 			"ubus": {
+ 				"file": [ "exec" ],
