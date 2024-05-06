@@ -1,2 +1,4 @@
 #!/bin/bash
-cd ./feeds/luci && git apply --reject ./files/Add_wireless_Fake_support.patch
+cp ./files/Add_wireless_Fake_support.patch ./feeds/
+cd ./feeds/luci
+git apply --reject ../Add_wireless_Fake_support.patch
