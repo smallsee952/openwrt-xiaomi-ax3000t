@@ -1,0 +1,103 @@
+From feda48177decd48e8e5cda85af5a85ca07ca85bd Mon Sep 17 00:00:00 2001
+From: Gitea <gitea@fake.local>
+Date: Tue, 16 Apr 2024 11:23:28 +0000
+Subject: [PATCH] mediatek add common-wylink.mk
+
+---
+ target/linux/mediatek/image/Makefile         |  2 +
+ target/linux/mediatek/image/common-wylink.mk | 73 ++++++++++++++++++++
+ 2 files changed, 75 insertions(+)
+ create mode 100644 target/linux/mediatek/image/common-wylink.mk
+
+diff --git a/target/linux/mediatek/image/Makefile b/target/linux/mediatek/image/Makefile
+index d4f79ec..5feb9c1 100644
+--- a/target/linux/mediatek/image/Makefile
++++ b/target/linux/mediatek/image/Makefile
+@@ -33,6 +33,8 @@ define Device/Default
+ 	pad-rootfs | append-metadata
+ endef
+ 
++include common-wylink.mk
++
+ include $(SUBTARGET).mk
+ 
+ define Image/Build
+diff --git a/target/linux/mediatek/image/common-wylink.mk b/target/linux/mediatek/image/common-wylink.mk
+new file mode 100644
+index 0000000..d940b74
+--- /dev/null
++++ b/target/linux/mediatek/image/common-wylink.mk
+@@ -0,0 +1,73 @@
++# This is wylink common sets
++
++define Device/wylink-common
++	DEVICE_PACKAGES := kmod-nls-utf8 \
++	luci luci-app-commands openssh-sftp-server
++endef
++
++define Device/wylink-usb
++	DEVICE_PACKAGES += kmod-usb-core kmod-usb2 kmod-usb-storage \
++	kmod-fs-exfat fdisk lsblk blkid exfat-fsck exfat-mkfs dmesg block-mount
++endef
++
++define Device/wylink-usb3
++	$(Device/wylink-usb)
++	DEVICE_PACKAGES += kmod-usb3
++endef
++
++define Device/wylink-zram
++	DEVICE_PACKAGES += kmod-fs-ext4 e2fsprogs zram-swap
++endef
++
++define Device/wylink-zram-full
++	DEVICE_PACKAGES += kmod-fs-ext4 e2fsprogs zram-swap kmod-lib-lz4 kmod-lib-zstd
++endef
++
++define Device/wylink-witool
++	DEVICE_PACKAGES += aircrack-ng reaver hcxdumptool hcxtools
++endef
++
++define Device/wylink-nfs
++	DEVICE_PACKAGES += kmod-fs-nfs-v3 mount-utils nfs-utils block-mount
++endef
++
++define Device/wylink-lge8m
++	$(Device/wylink-common)
++	$(Device/wylink-witool)
++	DEVICE_PACKAGES += luci-app-fileassistant luci-app-ttyd
++endef
++
++define Device/wylink-lite
++	$(Device/wylink-common)
++	$(Device/wylink-witool)
++	$(Device/wylink-nfs)
++endef
++
++define Device/wylink-litweb
++	$(Device/wylink-lge8m)
++	DEVICE_PACKAGES += luci-app-uhttpd
++endef
++
++define Device/wylink-ngweb
++	$(Device/wylink-lge8m)
++	DEVICE_PACKAGES += -luci luci-nginx
++endef
++
++define Device/wylink-tiny
++	$(Device/wylink-litweb)
++	$(Device/wylink-nfs)
++endef
++
++define Device/wylink-cwpks
++	$(Device/wylink-tiny)
++	DEVICE_PACKAGES += kmod-nls-cp936 kmod-nls-cp437 \
++	luci-proto-relay luci-app-vlmcsd \
++	bridge screen nano bash fping curl wget
++endef
++
++define Device/wylink-nand
++	$(Device/wylink-cwpks)
++	$(Device/wylink-zram)
++	$(Device/wylink-usb3)
++	DEVICE_PACKAGES += kmod-fs-nfs-v4 ppp-mod-pptp -dnsmasq dnsmasq-full luci-app-hd-idle
++endef
