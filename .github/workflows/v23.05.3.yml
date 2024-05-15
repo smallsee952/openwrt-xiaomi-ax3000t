@@ -355,8 +355,8 @@ jobs:
       - name: 删除工作流
         uses: Mattraks/delete-workflow-runs@main
         with:
-          retain_days: 3
-          keep_minimum_runs: 3
+          retain_days: 1
+          keep_minimum_runs: 2
 
       - name: 清理工作空间
         id: clearwork
