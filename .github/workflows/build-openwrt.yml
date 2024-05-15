@@ -1,9 +1,9 @@
 name: Build OpenWrt AX3000T
 
 on:
-   push:
-  repository_dispatch:
-  workflow_dispatch:
+  push:
+#  repository_dispatch:
+#  workflow_dispatch:
 
 env:
   TZ: America/New_York
