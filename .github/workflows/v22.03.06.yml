@@ -1,4 +1,4 @@
-name: Build OpenWrt AX3000T v22.03.06
+name: Build OpenWrt AX3000T v22.03.6
 
 on:
   push:
@@ -9,7 +9,7 @@ env:
   TZ: America/New_York
   device_branch: mt7981
   openwrt_branch: openwrt
-  repo_openwrt_branch: v22.03.06
+  repo_openwrt_branch: v22.03.6
   repo_openwrt: "https://git.openwrt.org/openwrt/openwrt.git"
 
 jobs:
