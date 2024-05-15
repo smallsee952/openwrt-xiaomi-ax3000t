@@ -1,4 +1,4 @@
-name: Build OpenWrt AX3000T v21.02.7
+name: AX3000T v23.05.3
 
 on:
   push:
@@ -9,7 +9,7 @@ env:
   TZ: America/New_York
   device_branch: mt7981
   openwrt_branch: openwrt
-  repo_openwrt_branch: v21.02.7
+  repo_openwrt_branch: v23.05.3
   repo_openwrt: "https://git.openwrt.org/openwrt/openwrt.git"
 
 jobs:
@@ -184,7 +184,7 @@ jobs:
           echo -e "当前工作目录: $(pwd)"
           git clone ${repo_openwrt} ${path_openwrt} 
           cd ${path_openwrt}
-          git checkout ${repo_openwrt_branch} 
+          git reset --hard ${repo_openwrt_branch} 
           echo "status=success" >> ${GITHUB_OUTPUT}
         
       - name: 拉取 DIY 本地库
