@@ -1,0 +1,372 @@
+name: Build OpenWrt AX3000T
+
+on:
+#   push:
+  repository_dispatch:
+  workflow_dispatch:
+
+env:
+  TZ: America/New_York
+  device_branch: mt7981
+  openwrt_branch: openwrt
+  repo_openwrt_branch: main
+  repo_openwrt: "https://git.openwrt.org/openwrt/openwrt.git"
+
+jobs:
+  build:
+    name: Build Openwrt
+    runs-on: ubuntu-22.04
+    if: ${{ github.event.repository.owner.id }} == ${{ github.event.sender.id }}
+
+    steps:
+      - name: 检查代码
+        uses: actions/checkout@v4
+
+      - name: 删除工作流
+        id: delworkflow
+        uses: Mattraks/delete-workflow-runs@main
+        with:
+          retain_days: 0
+          keep_minimum_runs: 0
+
+      - name: 检查工作流
+        id: checkworkflow
+        run: |
+          echo "status=success" >> ${GITHUB_OUTPUT}
+
+      - name: 设置环境变量
+        id: variable
+        working-directory: /
+        if: ${{ success() && steps.checkworkflow.outputs.status == 'success' }}
+        run: |
+          echo -e "当前工作目录: $(pwd)"
+
+          # ========== Set OpenWrt repo branch ==========
+          repo_diy="https://github.com/$GITHUB_REPOSITORY"
+
+          repo_diy_owner="$GITHUB_REPOSITORY_OWNER"
+          
+          # 工作仓库
+          echo "repo_diy=${repo_diy}" >> "$GITHUB_ENV"
+          
+          # 工作者
+          echo "repo_diy_owner=${repo_diy_owner}" >> "$GITHUB_ENV"
+
+          # openwrt官方
+          echo "openwrt_branch=${openwrt_branch}" >> "$GITHUB_ENV"
+
+          # openwrt官方分支库
+          echo "repo_openwrt=${repo_openwrt}" >> "$GITHUB_ENV"
+
+          # openwrt官方分支名
+          echo "repo_openwrt_branch=${repo_openwrt_branch}" >> "$GITHUB_ENV"
+
+          # ========== Build Path ==========
+          
+          # openwrt构建目录
+          dir_build="build"
+          dir_diy="DIY"
+          dir_output="output"
+          
+          # ---------- / ----------
+          path_build="/${dir_build}"
+          path_openwrt="${path_build}/${openwrt_branch}"
+          
+          # ---------- path_openwrt/ ----------
+          path_output="${path_openwrt}/${dir_output}"
+          path_diy="${path_openwrt}/${dir_diy}"
+          path_diy_branch="${path_diy}/${openwrt_branch}"
+
+          echo "path_build=${path_build}" >> "$GITHUB_ENV"
+          echo "path_openwrt=${path_openwrt}" >> "$GITHUB_ENV"
+          echo "path_output=${path_output}" >> "$GITHUB_ENV"
+          echo "path_diy=${path_diy}" >> "$GITHUB_ENV"
+          echo "path_diy_branch=${path_diy_branch}" >> "$GITHUB_ENV"
+
+          # ========== DIY Files ==========
+          diy_config="${path_diy_branch}/${device_branch}.config"
+          diy_feeds="${path_diy_branch}/feeds.conf.default"
+          diy_p1_sh="${path_diy_branch}/diy-part1.sh"
+          diy_p2_sh="${path_diy_branch}/diy-part2.sh"
+          diy_files="${path_diy_branch}/files"
+
+          echo "diy_config=${diy_config}" >> "$GITHUB_ENV"
+          echo "diy_feeds=${diy_feeds}" >> "$GITHUB_ENV"
+          echo "diy_p1_sh=${diy_p1_sh}" >> "$GITHUB_ENV"
+          echo "diy_p2_sh=${diy_p2_sh}" >> "$GITHUB_ENV"
+          echo "diy_files=${diy_files}" >> "$GITHUB_ENV"
+          # ========== END ==========
+          echo "status=success" >> ${GITHUB_OUTPUT}
+
+      - name: 清理工作环境
+        id: clearinit
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        working-directory: /
+        if: ${{ success() && steps.variable.outputs.status == 'success' }}
+        run: |
+          echo -e "当前工作目录: $(pwd)"
+          # 删除docker所有镜像
+          docker rmi $(docker images -q) 2>/dev/null
+          
+          # 如果环境变量 AGENT_TOOLSDIRECTORY 不为空，则删除该目录及其所有内容
+          [[ -n "${AGENT_TOOLSDIRECTORY}" ]] && sudo rm -rf "${AGENT_TOOLSDIRECTORY}"
+          
+          # 删除指定的目录及其所有内容，忽略所有错误信息
+          sudo rm -rf /usr/share/dotnet /etc/apt/sources.list.d /usr/local/lib/android 2>/dev/null
+          
+          # 关闭所有交换空间 删除指定的交换文件
+          sudo swapoff -a
+          sudo rm -f /swapfile /mnt/swapfile
+          
+          echo "status=success" >> ${GITHUB_OUTPUT}
+
+      - name: 初始化环境
+        id: init
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        working-directory: /
+        if: ${{ success() && steps.clearinit.outputs.status == 'success' }}
+        run: |
+          echo -e "Current working directory: $(pwd)"
+          
+          # 更新 Ubuntu 的软件包列表
+          # sudo -E apt-get -y -qq update
+          
+          # 删除指定的软件包及其配置文件。如果删除失败，则忽略错误
+          # sudo -E apt-get -y -qq purge azure-cli* docker* ghc* zulu* llvm* firefox google* dotnet* powershell openjdk* mongodb* moby* || true
+          
+          # 下载并安装指定 URL 中列出的软件包 https://is.gd/depend_ubuntu2204_openwrt
+          # sudo -E apt-get -y -qq install ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache clang clangd cmake cpio curl device-tree-compiler ecj fastjar flex gawk gettext gcc-multilib g++-multilib git gperf haveged help2man intltool lib32gcc-s1 libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses5-dev libncursesw5 libncursesw5-dev libreadline-dev libssl-dev libtool lld lldb lrzsz mkisofs msmtp nano ninja-build p7zip p7zip-full patch pkgconf python3 python3-distutils python3-docutils python3-pip python3-ply qemu-utils re2c rsync scons squashfs-tools subversion swig texinfo uglifyjs unzip vim wget xmlto xxd zlib1g-dev libdb++-dev
+          
+          # 删除所有不再需要的软件包及其配置文件, 清理 apt 的缓存
+          # sudo -E apt-get -qq -y autoremove --purge
+          # sudo -E apt-get -qq clean
+          # sudo timedatectl set-timezone "${TZ}"
+          
+          # 重新加载 systemd 的配置
+          # sudo -E systemctl daemon-reload
+          echo "status=success" >> ${GITHUB_OUTPUT}
+
+      - name: 创建模拟物理磁盘
+        id: disk
+        working-directory: /
+        if: ${{ success() && steps.init.outputs.status == 'success' }}
+        run: |
+          echo -e "当前工作目录: $(pwd)"
+          # 计算 /mnt 分区的可用空间（减去 1GB 作为缓冲）, 计算根分区的可用空间（减去 4GB 作为缓冲）
+          mnt_size=$(expr $(df -h /mnt | tail -1 | awk '{print $4}' | sed 's/[[:alpha:]]//g' | sed 's/\..*//') - 1)
+          root_size=$(expr $(df -h / | tail -1 | awk '{print $4}' | sed 's/[[:alpha:]]//g' | sed 's/\..*//') - 4)
+          # 创建一个大小为 mnt_size 的文件 /mnt/mnt.img, 创建一个大小为 root_size 的文件 /root.img
+          sudo truncate -s "${mnt_size}"G /mnt/mnt.img
+          sudo truncate -s "${root_size}"G /root.img
+          # 将这两个文件关联到 loop 设备, 在这两个 loop 设备上创建物理卷, 创建一个名为 github 的卷组，包含这两个物理卷
+          sudo losetup /dev/loop6 /mnt/mnt.img
+          sudo losetup /dev/loop7 /root.img
+          sudo pvcreate /dev/loop6
+          sudo pvcreate /dev/loop7
+          sudo vgcreate github /dev/loop6 /dev/loop7
+
+          # 在 github 卷组上创建一个名为 runner 的逻辑卷，使用所有可用空间, 在 runner 逻辑卷上创建一个 XFS 文件系统
+          sudo lvcreate -n runner -l 100%FREE github
+          sudo mkfs.xfs /dev/github/runner
+          # 创建一个挂载点 ${path_build}, 将 runner 逻辑卷挂载到 ${path_build}, 将 ${path_build} 的所有者和组更改为 runner
+          sudo mkdir -p ${path_build}
+          sudo mount /dev/github/runner ${path_build}
+          sudo chown -R runner.runner ${path_build}
+          echo "status=success" >> ${GITHUB_OUTPUT}
+
+      - name: 拉取 OPENWRT 仓库
+        id: clonesys
+        working-directory: ${{ env.path_build }}
+        if: ${{ success() && steps.disk.outputs.status == 'success' }}
+        run: |
+          echo -e "当前工作目录: $(pwd)"
+          git clone ${repo_openwrt} ${path_openwrt} --branch=${repo_openwrt_branch} 
+          cd ${path_openwrt}
+          git rev-parse HEAD
+          git branch -vv
+          git checkout v22.03.6
+          # git branch diy
+          # git switch diy
+          # echo "status=success" >> ${GITHUB_OUTPUT}
+        
+      - name: 拉取 DIY 本地库
+        id: clonediy
+        working-directory: ${{ env.path_openwrt }}
+        if: ${{ success() && steps.clonesys.outputs.status == 'success' }}
+        run: |
+          echo -e "当前工作目录: $(pwd)"
+          git clone ${repo_diy} ${path_diy} --single-branch --depth=1 --branch=master
+          echo "status=success" >> ${GITHUB_OUTPUT}
+
+      - name: 导入本地 FILE 文件
+        id: files
+        working-directory: ${{ env.path_openwrt }}
+        if: ${{ success() && steps.clonediy.outputs.status == 'success' }}
+        run: |
+          echo -e "当前工作目录: $(pwd)"
+          mkdir -p ./files/
+          if [[ -e "${diy_files}" ]]; then
+              cp -rf ${diy_files}/* ./files/
+              ls -l ./files/
+          fi
+          echo "status=success" >> ${GITHUB_OUTPUT}
+
+      - name: 自定义软件包
+        id: feeds
+        working-directory: ${{ env.path_openwrt }}
+        if: ${{ success() && steps.files.outputs.status == 'success' }}
+        run: |
+          echo -e "当前工作目录: $(pwd)"
+          if [[ -e "${diy_feeds}" && ! "${diy_feeds}" -ef "${path_openwrt}/feeds.conf.default" ]]; then
+            echo -e "diy_feeds: ${diy_feeds}"
+            cp -f ${diy_feeds} ${path_openwrt}/feeds.conf.default
+          fi
+          echo "status=success" >> ${GITHUB_OUTPUT}
+
+      - name: 运行 DIY_1 脚本
+        id: diyp1
+        working-directory: ${{ env.path_openwrt }}
+        if: ${{ success() && steps.feeds.outputs.status == 'success' }}
+        env:
+          file_script: ${{ env.diy_p1_sh }}
+        run: |
+          echo -e "当前工作目录: $(pwd)"
+          if [[ -e "${file_script}" ]]; then
+            echo -e "file_script: ${file_script}"
+            chmod +x ${file_script}
+            bash ${file_script}
+            cat ${file_script}
+          fi
+          echo "status=success" >> ${GITHUB_OUTPUT}
+
+      - name: 更新 FEEDS 文件
+        id: update
+        working-directory: ${{ env.path_openwrt }}
+        if: ${{ success() && steps.diyp1.outputs.status == 'success' }}
+        run: |
+          echo -e "当前工作目录: $(pwd)"
+          cat ./feeds.conf.default
+          ./scripts/feeds update -a
+          echo "status=success" >> ${GITHUB_OUTPUT}
+
+      - name: 安装 FEEDS 文件
+        id: install
+        working-directory: ${{ env.path_openwrt }}
+        if: ${{ success() && steps.update.outputs.status == 'success' }}
+        run: |
+          echo -e "当前工作目录: $(pwd)"
+          ./scripts/feeds install -a
+          echo "status=success" >> ${GITHUB_OUTPUT}
+
+      - name: 导入 CONFIG 配置
+        id: config
+        working-directory: ${{ env.path_openwrt }}
+        if: ${{ success() && steps.install.outputs.status == 'success' }}
+        run: |
+          echo -e "当前工作目录: $(pwd)"
+
+          if [[ -e "${diy_config}" && ! "${diy_config}" -ef "${path_openwrt}/.config" ]]; then
+            cp -f ${diy_config} ${path_openwrt}/.config
+          else
+            echo ".config file not found"
+          fi
+          yes "" | make oldconfig
+          cat ./.config
+          echo "status=success" >> ${GITHUB_OUTPUT}
+
+      - name: 运行 DIY_2 脚本
+        id: diyp2
+        working-directory: ${{ env.path_openwrt }}
+        if: ${{ success() && steps.config.outputs.status == 'success' }}
+        env:
+          file_script: ${{ env.diy_p2_sh }}
+        run: |
+          echo -e "当前工作目录: $(pwd)"
+          if [[ -e "${file_script}" ]]; then
+            echo -e "file_script: ${file_script}"
+            chmod +x ${file_script}
+            bash ${file_script}
+            cat ${file_script}
+          fi
+          echo "status=success" >> ${GITHUB_OUTPUT}
+
+      - name: 更新 CONFIG 配置
+        id: upconfig
+        working-directory: ${{ env.path_openwrt }}
+        if: ${{ success() && steps.diyp2.outputs.status == 'success' }}
+        run: |
+          echo -e "当前工作目录: $(pwd)"
+          echo "make oldconfig: update .config file..."
+          yes "" | make oldconfig
+          cat ./.config
+          echo "status=success" >> ${GITHUB_OUTPUT}
+
+      - name: 下载相关包
+        id: package
+        working-directory: ${{ env.path_openwrt }}
+        if: ${{ success() && steps.upconfig.outputs.status == 'success' }}
+        run: |
+          echo -e "当前工作目录: $(pwd)"
+          echo -e "make download: $(($(nproc) + 1)) thread"
+          make download -j$(($(nproc) + 1))
+          # find dl -size -1024c -exec ls -l {} \;
+          # find dl -size -1024c -exec rm -f {} \;
+          echo "status=success" >> ${GITHUB_OUTPUT}
+
+      - name: 编译 OpenWrt 系统
+        id: compile
+        working-directory: ${{ env.path_openwrt }}
+        if: ${{ success() && steps.package.outputs.status == 'success' }}
+        run: |
+          echo -e "当前工作目录: $(pwd)"
+          echo -e "$(($(nproc) + 1)) thread compile"
+          make -j$(($(nproc) + 1)) V=s
+          echo "status=success" >> ${GITHUB_OUTPUT}
+
+      - name: 拷贝输出文件夹
+        id: copy
+        working-directory: /
+        env:
+          PATH_TARGET: ${{ env.path_openwrt }}/bin/targets/*/*/*
+        if: ${{ success() && steps.compile.outputs.status == 'success' }}
+        run: |
+          echo -e "当前工作目录: $(pwd)"
+          [[ -e "${path_output}" ]] || mkdir -p ${path_output}
+          cp -rf ${PATH_TARGET} ${path_output}/
+          cp -f ${path_openwrt}/.config ${path_output}/config
+          echo "status=success" >> ${GITHUB_OUTPUT}
+
+      - name: 设置输出文件夹
+        id: output
+        working-directory: ${{ env.path_output }}
+        if: ${{ success() && steps.copy.outputs.status == 'success' }}
+        run: |
+          echo -e "当前工作目录: $(pwd)"
+          rm -rf packages
+          echo -e "timestamp=$(date +"%Y.%m.%d-%H%M")" >> ${GITHUB_OUTPUT}
+          echo "status=success" >> ${GITHUB_OUTPUT}
+
+      - name: 上传 OpenWrt 固件
+        id: uprelease
+        uses: ncipollo/release-action@main
+        if: ${{ success() && steps.output.outputs.status == 'success' }}
+        env:
+          timestamp: ${{ steps.output.outputs.timestamp }}
+        with:
+          name: "${{ env.openwrt_branch }}_${{ env.device_branch }}_${{ env.timestamp }}"
+          tag: "${{ env.openwrt_branch }}-${{ env.timestamp }}"
+          artifacts: "${{ env.path_output }}/*"
+          allowUpdates: true
+          removeArtifacts: false
+          replacesArtifacts: true
+          token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: 清理工作空间
+        id: clearwork
+        working-directory: ${{ env.path_build }}
+        if: ${{ success() && steps.output.outputs.status == 'success' }}
+        run: |
+          # rm -rf $(ls . | grep -v "^output$" | xargs) 2>/dev/null
+          rm -rf ./* 2>/dev/null
