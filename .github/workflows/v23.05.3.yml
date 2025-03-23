@@ -1,4 +1,4 @@
-name: AX3000T v23.05.3
+name: AX3000T v23.05.5
 
 on:
   push:
@@ -9,13 +9,13 @@ env:
   TZ: America/New_York
   device_branch: mt7981
   openwrt_branch: openwrt
-  repo_openwrt_branch: v23.05.3
+  repo_openwrt_branch: v23.05.5
   repo_openwrt: "https://git.openwrt.org/openwrt/openwrt.git"
 
 jobs:
   build:
     name: Build Openwrt
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     if: ${{ github.event.repository.owner.id }} == ${{ github.event.sender.id }}
 
     steps:
